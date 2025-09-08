@@ -1,25 +1,33 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout
+from StreamServer import StreamServer
 from ClickableImage import ClickableImage
-from SocketManager import SocketManager
 
 
 class App(QWidget):
-    def __init__(self, image_path="example.png"):
+    def __init__(self):
         super().__init__()
-        self.socket_manager = SocketManager()
-        self.socket_manager.start_server()
 
         layout = QVBoxLayout()
-        self.image_widget = ClickableImage(image_path, self.socket_manager)
+        self.image_widget = ClickableImage(None)  # will set socket later
         layout.addWidget(self.image_widget)
-
         self.setLayout(layout)
+
         self.setWindowTitle("Depthgram UI (Python)")
+
+        # Start server with callback that updates the widget
+        self.socket_manager = StreamServer(on_frame=self.on_new_frame)
+        self.image_widget.socket_manager = self.socket_manager
+        self.socket_manager.start_server()
+
+    def on_new_frame(self, qimg):
+        # This is called from a background thread → use signal/slot or invokeLater
+        self.image_widget.update_frame(qimg)
 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = App("example.png")
+    window = App()
     window.show()
     sys.exit(app.exec_())
+
