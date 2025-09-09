@@ -47,36 +47,48 @@ class SocketManager:
                     break
                 msg_type = struct.unpack(">i", msg_type_data)[0]
 
-                if msg_type == 1:
+                if msg_type == 1:  # Image + intrinsics
+                    # Read payload size (big-endian)
                     size_data = self._recv_exact(4)
                     if not size_data:
-                        print("⚠ Failed to read size")
-                        continue
+                        break
+                    size = struct.unpack(">i", size_data)[0]
 
-                    size = struct.unpack("<i", size_data)[0]
+                    # Read full payload
                     payload = self._recv_exact(size)
-                    if not payload or len(payload) < 24:
-                        print("⚠ Payload too short")
-                        continue
+                    if not payload:
+                        break
 
-                    jpeg_bytes = payload[24:]  # skip intrinsics
+                    # Extract intrinsics (first 24 bytes, little-endian)
+                    fx, fy, cx, cy = struct.unpack("<ffff", payload[:16])
+                    width, height = struct.unpack("<ii", payload[16:24])
+
+                    # Extract JPEG bytes (rest of payload)
+                    jpeg_bytes = payload[24:]
+
+                    # Convert JPEG bytes to PIL Image
                     try:
                         img = Image.open(io.BytesIO(jpeg_bytes)).convert("RGB")
                     except Exception as e:
-                        print(f"⚠ Failed to open image: {e}")
+                        print(f"⚠ Failed to decode JPEG: {e}")
                         continue
 
-                    qimg = QImage(img.tobytes(), img.width, img.height, QImage.Format_RGB888)
+                    # Call the callback with the QImage
                     if self.on_image:
-                        self.on_image(qimg)
+                        from PyQt5.QtCore import QTimer
+                        from PyQt5.QtGui import QImage
+                        qimg = QImage(img.tobytes(), img.width, img.height, QImage.Format_RGB888)
+                        # Schedule update on main thread
+                        QTimer.singleShot(0, lambda q=qimg: self.on_image(q))
 
-                elif msg_type == 2:
-                    # distance (simple float return)
-                    x, y, z = struct.unpack(">fff", self._recv_exact(12))
-                    print(f"📏 Vector: ({x:.2f}, {y:.2f}, {z:.2f})")
-                    print(f"📏 Distance: {z:.2f} m")
+                elif msg_type == 2:  # Distance data
+                    data = self._recv_exact(16)  # 4 floats
+                    if not data:
+                        break
+                    distance, dx, dy, dz = struct.unpack("<ffff", data)
+                    print(f"📏 Distance → {distance:.2f} m, dx={dx:.2f}, dy={dy:.2f}, dz={dz:.2f}")
                     if self.on_distance:
-                        self.on_distance(z)
+                        self.on_distance(distance)
 
                 else:
                     print(f"⚠ Unknown msg type: {msg_type}")
