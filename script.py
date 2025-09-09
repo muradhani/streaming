@@ -1,7 +1,7 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout
-from StreamServer import StreamServer
 from ClickableImage import ClickableImage
+from SocketManager import StreamServer
 
 
 class App(QWidget):
