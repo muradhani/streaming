@@ -48,17 +48,25 @@ class SocketManager:
                 msg_type = struct.unpack(">i", msg_type_data)[0]
 
                 if msg_type == 1:
-                    size = struct.unpack("<i", self._recv_exact(4))[0]  # little-endian
+                    size_data = self._recv_exact(4)
+                    if not size_data:
+                        print("⚠ Failed to read size")
+                        continue
+
+                    size = struct.unpack("<i", size_data)[0]
                     payload = self._recv_exact(size)
+                    if not payload or len(payload) < 24:
+                        print("⚠ Payload too short")
+                        continue
 
-                    # Extract intrinsics + JPEG bytes
-                    jpeg_bytes = payload[24:]  # skip first 24 bytes
-                    img = Image.open(io.BytesIO(jpeg_bytes)).convert("RGB")
+                    jpeg_bytes = payload[24:]  # skip intrinsics
+                    try:
+                        img = Image.open(io.BytesIO(jpeg_bytes)).convert("RGB")
+                    except Exception as e:
+                        print(f"⚠ Failed to open image: {e}")
+                        continue
 
-                    # Convert PIL Image → QImage
                     qimg = QImage(img.tobytes(), img.width, img.height, QImage.Format_RGB888)
-
-                    # Call the callback
                     if self.on_image:
                         self.on_image(qimg)
 
@@ -69,16 +77,6 @@ class SocketManager:
                     print(f"📏 Distance: {z:.2f} m")
                     if self.on_distance:
                         self.on_distance(z)
-
-                elif msg_type == 3:
-                    # phone responded with 3D coordinates
-                    x, y, z = struct.unpack(">fff", self._recv_exact(12))
-                    #print(f"📲 Phone returned 3D point: ({x:.2f}, {y:.2f}, {z:.2f})")
-
-                    if self.pending_points:
-                        label = self.pending_points.pop(0)
-                        if self.on_point3d:
-                            self.on_point3d(label, (x, y, z))
 
                 else:
                     print(f"⚠ Unknown msg type: {msg_type}")
