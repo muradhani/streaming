@@ -48,8 +48,8 @@ class SocketManager:
                 msg_type = struct.unpack(">i", msg_type_data)[0]
 
                 if msg_type == 1:
-                    size = struct.unpack("<i", self.recv_exact(4))[0]  # little-endian
-                    payload = self.recv_exact(size)
+                    size = struct.unpack("<i", self._recv_exact(4))[0]  # little-endian
+                    payload = self._recv_exact(size)
 
                     # Extract intrinsics + JPEG bytes
                     jpeg_bytes = payload[24:]  # skip first 24 bytes
