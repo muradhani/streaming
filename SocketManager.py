@@ -18,10 +18,7 @@ class SocketManager:
         # Callbacks instead of StateFlow
         self.on_image = None
         self.on_distance = None
-        self.on_point3d = None  # callback for 3D points
 
-        # Storage for matching corners
-        self.pending_points = []
 
     def start_server(self):
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
