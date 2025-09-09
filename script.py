@@ -1,11 +1,11 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout
 from ClickableImage import ClickableImage
-from SocketManager import StreamServer
+from SocketManager import  SocketManager
 
 
 class App(QWidget):
-    def __init__(self):
+    def __init__(self, socket_mgr: SocketManager):
         super().__init__()
 
         layout = QVBoxLayout()
@@ -16,7 +16,7 @@ class App(QWidget):
         self.setWindowTitle("Depthgram UI (Python)")
 
         # Start server with callback that updates the widget
-        self.socket_manager = StreamServer(on_frame=self.on_new_frame)
+        self.socket_manager = socket_mgr
         self.image_widget.socket_manager = self.socket_manager
         self.socket_manager.start_server()
 
@@ -26,8 +26,10 @@ class App(QWidget):
 
 
 if __name__ == "__main__":
+    mgr = SocketManager(port=8080)
     app = QApplication(sys.argv)
-    window = App()
+    window = App(mgr)
+    mgr.on_image = window.on_new_frame
     window.show()
     sys.exit(app.exec_())
 
