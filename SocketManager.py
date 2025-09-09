@@ -2,8 +2,9 @@ import socket
 import struct
 import threading
 import io
+import subprocess
 from PIL import Image
-from PyQt5.QtGui import QPixmap, QImage
+from PyQt5.QtGui import QImage
 
 
 class StreamServer:
@@ -14,19 +15,48 @@ class StreamServer:
         self.running = False
         self.on_frame = on_frame  # callback (QImage) -> None
 
+    def run_adb_reverse(self):
+        """Run adb reverse so Android can connect to this server."""
+        try:
+            process = subprocess.Popen(
+                ["adb", "reverse", f"tcp:{self.port}", f"tcp:{self.port}"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+            for line in process.stdout:
+                print("ADB:", line.strip())
+            process.wait()
+            print("✅ adb reverse set up")
+        except Exception as e:
+            print("❌ Failed to run adb reverse:", e)
+
     def start_server(self):
+        if self.sock:
+            print("⚠️ Server already started")
+            return
+
+        self.run_adb_reverse()
+
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind((self.host, self.port))
-        self.sock.listen(1)
+        self.sock.listen(5)
         self.running = True
         print(f"📡 Server started on {self.host}:{self.port}")
 
-        threading.Thread(target=self.accept_client, daemon=True).start()
+        threading.Thread(target=self.accept_clients, daemon=True).start()
 
-    def accept_client(self):
-        conn, addr = self.sock.accept()
-        print(f"✅ Client connected: {addr}")
-        self.handle_client(conn)
+    def accept_clients(self):
+        """Accept multiple clients and spawn threads for each."""
+        while self.running:
+            try:
+                conn, addr = self.sock.accept()
+                print(f"✅ Client connected: {addr}")
+                threading.Thread(
+                    target=self.handle_client, args=(conn,), daemon=True
+                ).start()
+            except Exception as e:
+                print("⚠ Accept failed:", e)
 
     def recv_exact(self, conn, size):
         buf = b""
@@ -38,18 +68,22 @@ class StreamServer:
         return buf
 
     def send_touch_coordinates(self, x, y):
-        """Send normalized click coordinates to the server"""
+        """Send normalized click coordinates to the connected client."""
         try:
+            if not self.sock:
+                raise RuntimeError("Server not running")
+            # Connect as a client to send coords
             client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client.connect((self.host, self.port))
             message = f"{x},{y}"
             client.sendall(message.encode("utf-8"))
             client.close()
-            print(f"Sent: {message}")
+            print(f"📤 Sent: {message}")
         except Exception as e:
-            print("Send failed:", e)
+            print("❌ Send failed:", e)
 
     def handle_client(self, conn):
+        """Handle incoming data from Android client."""
         try:
             while self.running:
                 header = self.recv_exact(conn, 4)
@@ -67,7 +101,8 @@ class StreamServer:
                     img = Image.open(io.BytesIO(jpeg_bytes)).convert("RGB")
                     qimg = QImage(img.tobytes(), img.width, img.height, QImage.Format_RGB888)
 
-                    self.on_frame(qimg)  # send to UI
+                    if self.on_frame:
+                        self.on_frame(qimg)
 
                 elif msg_type == 2:  # Distance data
                     floats = self.recv_exact(conn, 16)
@@ -81,5 +116,4 @@ class StreamServer:
             print("⚠ Connection lost:", e)
         finally:
             conn.close()
-
-
+            print("🔌 Client disconnected")
