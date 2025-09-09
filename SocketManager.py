@@ -72,13 +72,18 @@ class StreamServer:
         try:
             if not self.sock:
                 raise RuntimeError("Server not running")
-            # Connect as a client to send coords
+
+            # Create a new TCP socket
             client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client.connect((self.host, self.port))
-            message = f"{x},{y}"
-            client.sendall(message.encode("utf-8"))
+
+            client.sendall(struct.pack("<i", 3))  # msgType
+            client.sendall(struct.pack("<i", 8))  # size
+            client.sendall(struct.pack("<i", x))  # x
+            client.sendall(struct.pack("<i", y))  # y
             client.close()
-            print(f"📤 Sent: {message}")
+
+            print(f"📤 Sent touch coordinates: x={x}, y={y}")
         except Exception as e:
             print("❌ Send failed:", e)
 
