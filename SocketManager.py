@@ -2,23 +2,33 @@ import socket
 import struct
 import threading
 import io
-import subprocess
+import numpy as np
 from PIL import Image
-from PyQt5.QtGui import QImage
+from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtCore import QTimer, pyqtSignal, QObject, QByteArray, Qt
 
 
-class SocketManager:
+
+class SocketManager(QObject):
+    # Define signals for thread-safe communication
+    image_received = pyqtSignal(QImage)
+    distance_received = pyqtSignal(float)
+
     def __init__(self, host="0.0.0.0", port=8080):
+        super().__init__()
         self.host = host
         self.port = port
         self.server_socket = None
         self.client_socket = None
         self.lock = threading.Lock()
+        self.pending_points = []
 
-        # Callbacks instead of StateFlow
-        self.on_image = None
-        self.on_distance = None
-
+        # For memory reuse
+        self.current_width = 0
+        self.current_height = 0
+        self.image_buffer = None
+        self.qimage = None
+        self.byte_array = None
 
     def start_server(self):
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -31,10 +41,14 @@ class SocketManager:
 
     def _accept_loop(self):
         while True:
-            client, addr = self.server_socket.accept()
-            self.client_socket = client
-            print(f"📥 Client connected: {addr}")
-            threading.Thread(target=self._listen_for_messages, daemon=True).start()
+            try:
+                client, addr = self.server_socket.accept()
+                self.client_socket = client
+                print(f"📥 Client connected: {addr}")
+                threading.Thread(target=self._listen_for_messages, daemon=True).start()
+            except Exception as e:
+                print(f"⚠ Accept error: {e}")
+                break
 
     def _listen_for_messages(self):
         try:
@@ -66,17 +80,39 @@ class SocketManager:
                     # Convert JPEG bytes to PIL Image
                     try:
                         img = Image.open(io.BytesIO(jpeg_bytes)).convert("RGB")
-                    except Exception as e:
-                        print(f"⚠ Failed to decode JPEG: {e}")
-                        continue
 
-                    # Call the callback with the QImage
-                    if self.on_image:
-                        from PyQt5.QtCore import QTimer
-                        from PyQt5.QtGui import QImage
-                        qimg = QImage(img.tobytes(), img.width, img.height, QImage.Format_RGB888)
-                        # Schedule update on main thread
-                        QTimer.singleShot(0, lambda q=qimg: self.on_image(q))
+                        # Update dimensions if they've changed
+                        if width != self.current_width or height != self.current_height:
+                            self.current_width = width
+                            self.current_height = height
+                            # Pre-allocate buffer for image data
+                            self.image_buffer = np.empty((height, width, 3), dtype=np.uint8)
+                            self.byte_array = QByteArray()
+                            self.byte_array.resize(width * height * 3)
+
+                        # Copy image data to our buffer
+                        np_img = np.array(img)
+                        np.copyto(self.image_buffer, np_img)
+
+                        # Create QImage from buffer without copying data
+                        if self.qimage is None or self.qimage.width() != width or self.qimage.height() != height:
+                            self.qimage = QImage(
+                                self.image_buffer.data,
+                                width,
+                                height,
+                                width * 3,  # bytesPerLine
+                                QImage.Format_RGB888
+                            )
+                        else:
+                            # Update existing QImage with new data
+                            # Note: This approach is more efficient but requires careful memory management
+                            pass
+
+                        # Emit the signal (thread-safe)
+                        self.image_received.emit(self.qimage.copy())  # Create a copy for thread safety
+
+                    except Exception as e:
+                        print(f"⚠ Failed to process image: {e}")
 
                 elif msg_type == 2:  # Distance data
                     data = self._recv_exact(16)  # 4 floats
@@ -84,8 +120,7 @@ class SocketManager:
                         break
                     distance, dx, dy, dz = struct.unpack("<ffff", data)
                     print(f"📏 Distance → {distance:.2f} m, dx={dx:.2f}, dy={dy:.2f}, dz={dz:.2f}")
-                    if self.on_distance:
-                        self.on_distance(distance)
+                    self.distance_received.emit(distance)
 
                 else:
                     print(f"⚠ Unknown msg type: {msg_type}")
@@ -107,15 +142,22 @@ class SocketManager:
                 data = struct.pack(">iiii", 3, 8, x, y)
                 self.client_socket.sendall(data)
                 self.pending_points.append(label)
-                #print(f"👆 Sent touch {label} to phone: ({x}, {y})")
+                print(f"👆 Sent touch {label} to phone: ({x}, {y})")
         except Exception as e:
             print(f"❌ Failed to send touch: {e}")
 
     def _recv_exact(self, size: int) -> bytes:
+        if not self.client_socket:
+            return None
+
         buf = b""
         while len(buf) < size:
-            data = self.client_socket.recv(size - len(buf))
-            if not data:
+            try:
+                data = self.client_socket.recv(size - len(buf))
+                if not data:
+                    return None
+                buf += data
+            except socket.error as e:
+                print(f"⚠ Socket error in _recv_exact: {e}")
                 return None
-            buf += data
         return buf
