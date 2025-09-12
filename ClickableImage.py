@@ -40,6 +40,6 @@ class ClickableImage(QLabel):
         normalized_y = real_y / self.display_h
 
         print(f"Click at: ({normalized_x:.1f}, {normalized_y:.1f})")
-        self.socket_manager.send_touch_coordinates(normalized_x, normalized_y)
+        self.socket_mgr.get_object_distance(normalized_x, normalized_y)
         super().mousePressEvent(event)
 
