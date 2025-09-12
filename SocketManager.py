@@ -2,6 +2,8 @@ import socket
 import struct
 import threading
 import io
+from typing import List
+
 import numpy as np
 from PIL import Image
 from PyQt5.QtGui import QImage, QPixmap
@@ -121,6 +123,13 @@ class SocketManager(QObject):
                     distance, dx, dy, dz = struct.unpack("<ffff", data)
                     print(f"📏 Distance → {distance:.2f} m, dx={dx:.2f}, dy={dy:.2f}, dz={dz:.2f}")
                     self.distance_received.emit(distance)
+                elif msg_type == 5 :
+                    data = self._recv_exact(4)  # one float = 4 bytes
+                    if not data:
+                        break
+                    distance = struct.unpack("<f", data)[0]
+                    print(f"📏 (Type 5) Distance only → {distance:.2f} m")
+                    self.distance_received.emit(distance)
 
                 else:
                     print(f"⚠ Unknown msg type: {msg_type}")
@@ -161,3 +170,19 @@ class SocketManager(QObject):
                 print(f"⚠ Socket error in _recv_exact: {e}")
                 return None
         return buf
+
+    def get_object_distance(self,click:List[int]):
+        """Send touch coordinates back to Android (msgType=3)."""
+        if not self.client_socket:
+            print("⚠ No client connected")
+            return
+        try:
+            with self.lock:
+                # msgType=4, payload=16, then x and y
+                x1, y1 = click[0]
+                x2, y2 = click[1]
+                data = struct.pack(">iiffff", 4, 16, x1, y1,x2,y2)
+                self.client_socket.sendall(data)
+                print(f"👆 Sent touch to phone: ({x1}, {y1}) ({x2}, {y2})")
+        except Exception as e:
+            print(f"❌ Failed to send touch: {e}")
