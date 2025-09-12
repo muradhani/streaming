@@ -14,51 +14,32 @@ class ClickableImage(QLabel):
 
     def update_frame(self, qimg):
         pixmap = QPixmap.fromImage(qimg)
-        self.setPixmap(pixmap.scaled(self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        scaled_pixmap = pixmap.scaled(self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        # calculate where it sits inside the QLabel (offset = black borders)
+        self.start_x = (self.width() - scaled_pixmap.width()) / 2
+        self.start_y = (self.height() - scaled_pixmap.height()) / 2
+
+        # store the displayed size of the preview
+        self.display_w = scaled_pixmap.width()
+        self.display_h = scaled_pixmap.height()
+        # displaying the real width and height
+        print(f"Preview displayed size: {self.display_w} x {self.display_h}")
+
+        # this is the space between the image and the real previewing image
+        print(f"Preview offset inside widget: {self.start_x}, {self.start_y}")
+
+        self.setPixmap(scaled_pixmap)
 
     def mousePressEvent(self, event):
-        """
-        Minimal version: only compute the actual displayed preview size
-        and its top-left offset (start_x, start_y) inside the label.
-        """
-        pix = self.pixmap()
-        if pix is None:
-            super().mousePressEvent(event)
-            return
+        click_x = event.pos().x()
+        click_y = event.pos().y()
+        real_x = event.pos().x() - self.start_x
+        real_y = event.pos().y() - self.start_y
 
-        # Widget size
-        label_w = float(self.width())
-        label_h = float(self.height())
+        normalized_x = real_x / self.display_w
+        normalized_y = real_y / self.display_h
 
-        # Original frame dimensions (from phone)
-        try:
-            frame_w = float(self.socket_mgr.current_width)
-            frame_h = float(self.socket_mgr.current_height)
-            if frame_w <= 0 or frame_h <= 0:
-                raise ValueError("invalid frame size")
-        except Exception:
-            print("ERROR: missing/invalid frame dimensions from socket_mgr")
-            super().mousePressEvent(event)
-            return
-
-        # Aspect ratios
-        frame_ratio = frame_w / frame_h
-        label_ratio = label_w / label_h
-
-        # Compute displayed preview size (fit inside label, keep aspect ratio)
-        if frame_ratio > label_ratio:
-            display_w = label_w
-            display_h = label_w / frame_ratio
-        else:
-            display_h = label_h
-            display_w = label_h * frame_ratio
-
-        # Compute offsets (where the image starts inside the label)
-        start_x = (label_w - display_w) / 2.0
-        start_y = (label_h - display_h) / 2.0
-
-        print(f"Preview rect: start=({start_x:.1f},{start_y:.1f}), "
-              f"size=({display_w:.1f},{display_h:.1f})")
-
+        print(f"Click at: ({normalized_x:.1f}, {normalized_y:.1f})")
+        self.socket_manager.send_touch_coordinates(normalized_x, normalized_y)
         super().mousePressEvent(event)
 
