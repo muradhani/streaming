@@ -81,37 +81,29 @@ class SocketManager(QObject):
 
                     # Convert JPEG bytes to PIL Image
                     try:
+                        # Convert JPEG bytes to PIL Image
                         img = Image.open(io.BytesIO(jpeg_bytes)).convert("RGB")
-
-                        # Update dimensions if they've changed
-                        if width != self.current_width or height != self.current_height:
-                            self.current_width = width
-                            self.current_height = height
-                            # Pre-allocate buffer for image data
-                            self.image_buffer = np.empty((height, width, 3), dtype=np.uint8)
-                            self.byte_array = QByteArray()
-                            self.byte_array.resize(width * height * 3)
-
-                        # Copy image data to our buffer
                         np_img = np.array(img)
+
+                        # Ensure buffer matches incoming image size
+                        if self.image_buffer is None or self.image_buffer.shape != np_img.shape:
+                            self.image_buffer = np.empty_like(np_img)
+
+                        # Copy image data into buffer
                         np.copyto(self.image_buffer, np_img)
 
-                        # Create QImage from buffer without copying data
-                        if self.qimage is None or self.qimage.width() != width or self.qimage.height() != height:
-                            self.qimage = QImage(
-                                self.image_buffer.data,
-                                width,
-                                height,
-                                width * 3,  # bytesPerLine
-                                QImage.Format_RGB888
-                            )
-                        else:
-                            # Update existing QImage with new data
-                            # Note: This approach is more efficient but requires careful memory management
-                            pass
+                        # Create or update QImage
+                        self.qimage = QImage(
+                            self.image_buffer.data,
+                            np_img.shape[1],
+                            np_img.shape[0],
+                            np_img.shape[1] * 3,  # bytes per line
+                            QImage.Format_RGB888
+                        )
 
-                        # Emit the signal (thread-safe)
-                        self.image_received.emit(self.qimage.copy())  # Create a copy for thread safety
+                        # Emit a copy for thread safety
+                        self.image_received.emit(self.qimage.copy())
+                    # Create a copy for thread safety
 
                     except Exception as e:
                         print(f"⚠ Failed to process image: {e}")
