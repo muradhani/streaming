@@ -73,11 +73,11 @@ class SocketManager(QObject):
                         break
 
                     # Extract intrinsics (first 24 bytes, little-endian)
-                    fx, fy, cx, cy = struct.unpack("<ffff", payload[:16])
-                    width, height = struct.unpack("<ii", payload[16:24])
+                    # fx, fy, cx, cy = struct.unpack("<ffff", payload[:16])
+                    # width, height = struct.unpack("<ii", payload[16:24])
 
                     # Extract JPEG bytes (rest of payload)
-                    jpeg_bytes = payload[24:]
+                    jpeg_bytes = payload
 
                     # Convert JPEG bytes to PIL Image
                     try:
