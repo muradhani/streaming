@@ -60,8 +60,8 @@ class SocketManager(QObject):
                     break
                 msg_type = struct.unpack(">i", msg_type_data)[0]
 
-                if msg_type == 1:  # Image + intrinsics
-                    # Read payload size (big-endian)
+                if msg_type == 1:  # Image frame
+                    # Read payload size
                     size_data = self._recv_exact(4)
                     if not size_data:
                         break
@@ -72,17 +72,9 @@ class SocketManager(QObject):
                     if not payload:
                         break
 
-                    # Extract intrinsics (first 24 bytes, little-endian)
-                    # fx, fy, cx, cy = struct.unpack("<ffff", payload[:16])
-                    # width, height = struct.unpack("<ii", payload[16:24])
-
-                    # Extract JPEG bytes (rest of payload)
-                    jpeg_bytes = payload
-
-                    # Convert JPEG bytes to PIL Image
                     try:
                         # Convert JPEG bytes to PIL Image
-                        img = Image.open(io.BytesIO(jpeg_bytes)).convert("RGB")
+                        img = Image.open(io.BytesIO(payload)).convert("RGB")
                         np_img = np.array(img)
 
                         # Ensure buffer matches incoming image size
