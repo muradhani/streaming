@@ -119,7 +119,7 @@ class SocketManager(QObject):
                     data = self._recv_exact(4)  # one float = 4 bytes
                     if not data:
                         break
-                    distance = struct.unpack("<f", data)[0]
+                    distance = struct.unpack(">f", data)[0]
                     print(f"📏 (Type 5) Distance only → {distance:.2f} m")
                     self.distance_received.emit(distance)
 
