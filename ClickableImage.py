@@ -22,11 +22,6 @@ class ClickableImage(QLabel):
         # store the displayed size of the preview
         self.display_w = scaled_pixmap.width()
         self.display_h = scaled_pixmap.height()
-        # displaying the real width and height
-        print(f"Preview displayed size: {self.display_w} x {self.display_h}")
-
-        # this is the space between the image and the real previewing image
-        print(f"Preview offset inside widget: {self.start_x}, {self.start_y}")
 
         self.setPixmap(scaled_pixmap)
 
@@ -39,9 +34,10 @@ class ClickableImage(QLabel):
         normalized_x = real_x / self.display_w
         normalized_y = real_y / self.display_h
         self.clicks.append((normalized_x, normalized_y))
-        self.clicks.append((normalized_x, normalized_y))
-        print(f"Click at: ({normalized_x:.1f}, {normalized_y:.1f})")
-        self.socket_mgr.get_object_distance(self.clicks)
-        self.clicks.clear()
+        if len(self.clicks) == 2:
+            print(f"Click at: ({normalized_x:.1f}, {normalized_y:.1f})")
+            self.socket_mgr.get_object_distance(self.clicks)
+            self.clicks.clear()
+
         super().mousePressEvent(event)
 
