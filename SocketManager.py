@@ -1,5 +1,6 @@
 import socket
 import struct
+import subprocess
 import threading
 import io
 from typing import List
@@ -9,6 +10,20 @@ from PIL import Image
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QTimer, pyqtSignal, QObject, QByteArray, Qt
 
+
+def setup_adb_reverse(port):
+    try:
+        cmd = ["adb", "reverse", f"tcp:{port}", f"tcp:{port}"]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        print(f"✅ ADB reverse set up on port {port}")
+        if result.stdout:
+            print(result.stdout)
+        if result.stderr:
+            print(result.stderr)
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to set adb reverse: {e.stderr}")
+    except FileNotFoundError:
+        print("❌ adb not found. Make sure Android platform-tools are installed and in PATH.")
 
 
 class SocketManager(QObject):
@@ -32,13 +47,17 @@ class SocketManager(QObject):
         self.qimage = None
         self.byte_array = None
 
-    def start_server(self):
+    def start_server(self, port=8080):
+        # setup adb reverse before starting server
+        setup_adb_reverse(port)
+
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.server_socket.bind((self.host, self.port))
+        self.server_socket.bind(("0.0.0.0", port))
         self.server_socket.listen(1)
-        print(f"📡 Listening on {self.host}:{self.port}...")
+        print(f"📡 Listening on {port}...")
 
+        # Start background thread to accept clients
         threading.Thread(target=self._accept_loop, daemon=True).start()
 
     def _accept_loop(self):

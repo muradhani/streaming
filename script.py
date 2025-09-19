@@ -22,7 +22,7 @@ class App(QWidget):
         self.socket_mgr.image_received.connect(self.on_new_frame)
 
         # Start server
-        self.socket_mgr.start_server()
+        self.socket_mgr.start_server(8080)
 
     def on_new_frame(self, qimg):
         self.image_widget.update_frame(qimg)
