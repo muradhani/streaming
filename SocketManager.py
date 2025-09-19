@@ -139,7 +139,7 @@ class SocketManager(QObject):
                     if not data:
                         break
                     distance = struct.unpack(">f", data)[0]
-                    print(f"Distance between 2 points → {distance:.6f} cm")
+                    print(f"📏 (Type 5) Distance only → {distance:.2f} m")
                     self.distance_received.emit(distance)
 
                 else:
