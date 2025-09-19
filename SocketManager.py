@@ -143,7 +143,7 @@ class SocketManager(QObject):
                 data = struct.pack(">iiii", 3, 8, x, y)
                 self.client_socket.sendall(data)
                 self.pending_points.append(label)
-                print(f"👆 Sent touch {label} to phone: ({x}, {y})")
+                print(f" Sent touch {label} to phone: ({x}, {y})")
         except Exception as e:
             print(f"❌ Failed to send touch: {e}")
 
