@@ -140,7 +140,7 @@ class SocketManager(QObject):
         try:
             with self.lock:
                 # msgType=3, payload=8, then x and y
-                data = struct.pack(">iiii", 3, 8, x, y)
+                data = struct.pack(">iiff", 3, 8, x, y)
                 self.client_socket.sendall(data)
                 self.pending_points.append(label)
                 print(f" Sent touch {label} to phone: ({x}, {y})")
