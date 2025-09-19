@@ -112,7 +112,7 @@ class SocketManager(QObject):
                     data = self._recv_exact(16)  # 4 floats
                     if not data:
                         break
-                    distance, dx, dy, dz = struct.unpack("<ffff", data)
+                    distance, dx, dy, dz = struct.unpack(">ffff", data)
                     print(f"📏 Distance → {distance:.2f} m, dx={dx:.2f}, dy={dy:.2f}, dz={dz:.2f}")
                     self.distance_received.emit(distance)
                 elif msg_type == 5 :
@@ -132,7 +132,7 @@ class SocketManager(QObject):
                 self.client_socket.close()
             self.client_socket = None
 
-    def send_touch(self, x: int, y: int, label="point"):
+    def send_touch(self, x: float, y: float, label="point"):
         """Send touch coordinates back to Android (msgType=3)."""
         if not self.client_socket:
             print("⚠ No client connected")
