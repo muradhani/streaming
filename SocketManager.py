@@ -131,7 +131,7 @@ class SocketManager(QObject):
                     data = self._recv_exact(16)  # 4 floats
                     if not data:
                         break
-                    distance, dx, dy, dz = struct.unpack("<ffff", data)
+                    distance, dx, dy, dz = struct.unpack(">ffff", data)
                     print(f"📏 Distance → {distance:.2f} m, dx={dx:.2f}, dy={dy:.2f}, dz={dz:.2f}")
                     self.distance_received.emit(distance)
                 elif msg_type == 5 :
